@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">FrameMe</string>
+
+    <string name="ar_checking">Checking AR support…</string>
+
+    <string name="ar_install_title">Install Google ARCore</string>
+    <string name="ar_install_message">FrameMe needs Google ARCore to hang true-to-scale frames on your walls. Install it to continue.</string>
+
+    <string name="ar_update_title">Update Google ARCore</string>
+    <string name="ar_update_message">Your version of Google ARCore is too old for FrameMe. Update it to continue.</string>
+
+    <string name="ar_unsupported_title">Device not compatible</string>
+    <string name="ar_unsupported_message">FrameMe needs Google ARCore to preview frames on your walls in augmented reality. This device isn\'t on Google\'s list of ARCore-supported devices, so the AR preview can\'t run here.</string>
+
+    <string name="ar_failed_title">Couldn\'t check AR support</string>
+    <string name="ar_failed_message">Something went wrong while checking this device\'s AR capabilities. Please try again.</string>
+
+    <string name="ar_action_install">Install</string>
+    <string name="ar_action_update">Update</string>
+    <string name="ar_action_retry">Try again</string>
+    <string name="ar_action_learn_more">Learn more</string>
+    <string name="ar_action_exit">Close app</string>
+</resources>

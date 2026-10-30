@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/.idea/
+/local.properties
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Release signing — never commit keys or credentials.
+keystore.properties
+*.jks
+*.keystore
+
+# Kotlin/Gradle caches
+.kotlin/
