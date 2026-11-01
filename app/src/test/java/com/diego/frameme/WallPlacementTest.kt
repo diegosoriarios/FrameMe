@@ -3,6 +3,7 @@ package com.diego.frameme
 import com.diego.frameme.ar.WallPlacement
 import dev.romainguy.kotlin.math.Float3
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -122,5 +123,114 @@ class WallPlacementTest {
         val q = WallPlacement.quatFromXYZW(floatArrayOf(0f, 0.70710678f, 0f, 0.70710678f))
         assertVec(Float3(1f, 0f, 0f), q.rotate(Float3(0f, 0f, 1f)))
         assertVec(Float3(0f, 1f, 0f), q.rotate(Float3(0f, 1f, 0f)))
+    }
+
+    @Test
+    fun `tracked vertical plane inside its polygon is placeable`() {
+        assertTrue(
+            WallPlacement.isPlaceableWall(
+                isVerticalPlane = true,
+                isPoseInPolygon = true,
+                outsidePolygonMeters = 0f,
+                isDepthPoint = false,
+                normalY = 0f,
+                isTrackableTracking = true,
+                distanceMeters = 2f,
+            ),
+        )
+    }
+
+    @Test
+    fun `vertical plane just outside its polygon is still placeable`() {
+        assertTrue(
+            WallPlacement.isPlaceableWall(
+                isVerticalPlane = true,
+                isPoseInPolygon = false,
+                outsidePolygonMeters = WallPlacement.WALL_POLYGON_TOLERANCE_M * 0.9f,
+                isDepthPoint = false,
+                normalY = 0f,
+                isTrackableTracking = true,
+                distanceMeters = 2f,
+            ),
+        )
+    }
+
+    @Test
+    fun `vertical plane far outside its polygon is not placeable`() {
+        assertFalse(
+            WallPlacement.isPlaceableWall(
+                isVerticalPlane = true,
+                isPoseInPolygon = false,
+                outsidePolygonMeters = WallPlacement.WALL_POLYGON_TOLERANCE_M * 2f,
+                isDepthPoint = false,
+                normalY = 0f,
+                isTrackableTracking = true,
+                distanceMeters = 2f,
+            ),
+        )
+    }
+
+    @Test
+    fun `depth hit on a vertical surface is placeable`() {
+        assertTrue(
+            WallPlacement.isPlaceableWall(
+                isVerticalPlane = false,
+                isPoseInPolygon = false,
+                outsidePolygonMeters = Float.POSITIVE_INFINITY,
+                isDepthPoint = true,
+                normalY = 0.05f,
+                isTrackableTracking = true,
+                distanceMeters = 2f,
+            ),
+        )
+    }
+
+    @Test
+    fun `depth hit on a floor or table is not placeable`() {
+        assertFalse(
+            WallPlacement.isPlaceableWall(
+                isVerticalPlane = false,
+                isPoseInPolygon = false,
+                outsidePolygonMeters = Float.POSITIVE_INFINITY,
+                isDepthPoint = true,
+                normalY = 1f,
+                isTrackableTracking = true,
+                distanceMeters = 2f,
+            ),
+        )
+    }
+
+    @Test
+    fun `untracked hits and out-of-range distances are not placeable`() {
+        val wall = WallPlacement.isPlaceableWall(
+            isVerticalPlane = true,
+            isPoseInPolygon = true,
+            outsidePolygonMeters = 0f,
+            isDepthPoint = false,
+            normalY = 0f,
+            isTrackableTracking = false,
+            distanceMeters = 2f,
+        )
+        val tooClose = WallPlacement.isPlaceableWall(
+            isVerticalPlane = true,
+            isPoseInPolygon = true,
+            outsidePolygonMeters = 0f,
+            isDepthPoint = false,
+            normalY = 0f,
+            isTrackableTracking = true,
+            distanceMeters = 0.05f,
+        )
+        val tooFar = WallPlacement.isPlaceableWall(
+            isVerticalPlane = true,
+            isPoseInPolygon = true,
+            outsidePolygonMeters = 0f,
+            isDepthPoint = false,
+            normalY = 0f,
+            isTrackableTracking = true,
+            distanceMeters = 12f,
+        )
+        assertFalse(wall)
+        assertFalse(tooClose)
+        assertFalse(tooFar)
     }
 }

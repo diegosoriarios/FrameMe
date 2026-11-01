@@ -50,11 +50,12 @@ class ARViewModel(application: Application) : AndroidViewModel(application) {
     data class TrackingUi(
         val sessionReady: Boolean = false,
         val isTracking: Boolean = false,
-        val verticalPlaneTracked: Boolean = false,
+        /** A wall is available: a tracked vertical plane, or depth sees one. */
+        val wallTracked: Boolean = false,
         val failureHint: String? = null,
     ) {
         val showCoach: Boolean
-            get() = !sessionReady || !verticalPlaneTracked || failureHint != null
+            get() = !sessionReady || !wallTracked || failureHint != null
     }
 
     private val _frameConfig = MutableStateFlow(FrameConfig.DEFAULT)
@@ -119,12 +120,12 @@ class ARViewModel(application: Application) : AndroidViewModel(application) {
         _yawDegrees.value = 0f
     }
 
-    fun onSessionUpdated(sessionReady: Boolean, isTracking: Boolean, verticalPlaneTracked: Boolean) {
+    fun onSessionUpdated(sessionReady: Boolean, isTracking: Boolean, wallTracked: Boolean) {
         _tracking.update {
             it.copy(
                 sessionReady = sessionReady,
                 isTracking = isTracking,
-                verticalPlaneTracked = verticalPlaneTracked,
+                wallTracked = wallTracked,
             )
         }
     }

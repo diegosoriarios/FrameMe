@@ -1,7 +1,9 @@
 package com.diego.frameme.ar
 
+import com.google.ar.core.DepthPoint
 import com.google.ar.core.HitResult
 import com.google.ar.core.Plane
+import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import dev.romainguy.kotlin.math.Float3
 import kotlin.math.abs
@@ -190,15 +192,112 @@ object WallPlacement {
     const val MAX_HIT_DISTANCE_M = 5f
 
     /**
-     * True when a hit can host a frame: a currently-tracked **vertical** plane,
-     * inside its detected polygon, within a sane distance from the camera.
+     * How far outside a tracked wall's detected polygon a hit still counts, in
+     * meters. The polygon only covers the textured patch ARCore has seen so
+     * far; a plain painted wall goes on well past its edge (or is never seen as
+     * a plane at all).
+     */
+    const val WALL_POLYGON_TOLERANCE_M = 1f
+
+    /**
+     * A depth hit whose surface normal's world-Y is within this of zero is a
+     * vertical surface. 0.25 is roughly 14° off vertical: a wall, door or
+     * cupboard front — never a floor or table top.
+     */
+    const val WALL_DEPTH_NORMAL_MAX_Y = 0.25f
+
+    /**
+     * True when a hit can host a frame. Accepts the three ways ARCore describes
+     * a wall:
+     *  - a tracked **vertical** plane hit inside its polygon;
+     *  - that same plane up to [WALL_POLYGON_TOLERANCE_M] outside its polygon;
+     *  - a depth hit on a vertical surface (ARCore returns no plane at all on
+     *    plain painted walls, but the depth API still finds them).
+     *
+     * All must be currently tracked and within a sane distance.
      */
     fun isPlaceableWallHit(hit: HitResult): Boolean {
-        if (hit.distance < MIN_HIT_DISTANCE_M || hit.distance > MAX_HIT_DISTANCE_M) return false
-        val plane = hit.trackable as? Plane ?: return false
-        if (plane.trackingState != TrackingState.TRACKING) return false
-        if (plane.type != Plane.Type.VERTICAL) return false
-        if (!plane.isPoseInPolygon(hit.hitPose)) return false
-        return true
+        val trackable = hit.trackable
+        val pose = hit.hitPose
+        val tracking = trackable.trackingState == TrackingState.TRACKING
+        val normalY = pose.getYAxis()[1]
+        val plane = trackable as? Plane
+        if (plane != null) {
+            val vertical = plane.type == Plane.Type.VERTICAL && plane.subsumedBy == null
+            val inPolygon = vertical && plane.isPoseInPolygon(pose)
+            val outside = if (vertical && !inPolygon) plane.outsidePolygonDistance(pose) else 0f
+            return isPlaceableWall(
+                isVerticalPlane = vertical,
+                isPoseInPolygon = inPolygon,
+                outsidePolygonMeters = outside,
+                isDepthPoint = false,
+                normalY = normalY,
+                isTrackableTracking = tracking,
+                distanceMeters = hit.distance,
+            )
+        }
+        return isPlaceableWall(
+            isVerticalPlane = false,
+            isPoseInPolygon = false,
+            outsidePolygonMeters = Float.POSITIVE_INFINITY,
+            isDepthPoint = trackable is DepthPoint,
+            normalY = normalY,
+            isTrackableTracking = tracking,
+            distanceMeters = hit.distance,
+        )
+    }
+
+    /** Pure, JVM-testable wall acceptance rule used by [isPlaceableWallHit]. */
+    fun isPlaceableWall(
+        isVerticalPlane: Boolean,
+        isPoseInPolygon: Boolean,
+        outsidePolygonMeters: Float,
+        isDepthPoint: Boolean,
+        normalY: Float,
+        isTrackableTracking: Boolean,
+        distanceMeters: Float,
+    ): Boolean {
+        if (!isTrackableTracking || !distanceMeters.isFinite()) return false
+        if (distanceMeters < MIN_HIT_DISTANCE_M || distanceMeters > MAX_HIT_DISTANCE_M) return false
+        return when {
+            isVerticalPlane && isPoseInPolygon -> true
+            isVerticalPlane && outsidePolygonMeters.isFinite() &&
+                outsidePolygonMeters <= WALL_POLYGON_TOLERANCE_M -> true
+            isDepthPoint && normalY.isFinite() && abs(normalY) < WALL_DEPTH_NORMAL_MAX_Y -> true
+            else -> false
+        }
+    }
+
+    /**
+     * How far [pose] lies outside this plane's detected polygon, in meters;
+     * `0` when inside. Computed in the plane's centre-pose frame (X/Z).
+     */
+    fun Plane.outsidePolygonDistance(pose: Pose): Float {
+        val local = centerPose.inverse().transformPoint(pose.translation)
+        val px = local[0]
+        val pz = local[2]
+        val buffer = polygon.duplicate()
+        buffer.rewind()
+        val points = FloatArray(buffer.remaining()).also { buffer.get(it) }
+        val count = points.size / 2
+        if (count < 3) return Float.POSITIVE_INFINITY
+        var best = Float.POSITIVE_INFINITY
+        for (i in 0 until count) {
+            val ax = points[i * 2]
+            val az = points[i * 2 + 1]
+            val j = (i + 1) % count
+            val bx = points[j * 2]
+            val bz = points[j * 2 + 1]
+            val ex = bx - ax
+            val ez = bz - az
+            val lengthSquared = ex * ex + ez * ez
+            if (lengthSquared < 1e-8f) continue
+            val t = (((px - ax) * ex + (pz - az) * ez) / lengthSquared).coerceIn(0f, 1f)
+            val dx = ax + ex * t - px
+            val dz = az + ez * t - pz
+            val distance = sqrt(dx * dx + dz * dz)
+            if (distance < best) best = distance
+        }
+        return best
     }
 }

@@ -204,10 +204,15 @@ fun ARScreen(viewModel: ARViewModel = viewModel()) {
                 val verticalPlaneTracked = session.getAllTrackables(Plane::class.java).any {
                     it.trackingState == TrackingState.TRACKING && it.type == Plane.Type.VERTICAL
                 }
+                // A plain painted wall often never becomes a plane; the depth API
+                // still finds it, so treat a wall-depth hit under the screen
+                // centre as a detected wall too.
+                val wallTracked = verticalPlaneTracked ||
+                    (isTracking && frame.hasPlaceableWallAt(rootView.width, rootView.height))
                 viewModel.onSessionUpdated(
                     sessionReady = true,
                     isTracking = isTracking,
-                    verticalPlaneTracked = verticalPlaneTracked,
+                    wallTracked = wallTracked,
                 )
             },
             onTrackingFailureChanged = { reason ->
@@ -298,12 +303,12 @@ fun ARScreen(viewModel: ARViewModel = viewModel()) {
         PlaneDiscoveryGuide(
             cameraReady = tracking.sessionReady,
             isTracking = tracking.isTracking,
-            anyPlaneTracked = tracking.verticalPlaneTracked,
+            anyPlaneTracked = tracking.wallTracked,
             trackingFailureReason = trackingFailure ?: TrackingFailureReason.NONE,
             bottomClearance = if (sheetOpen) 340.dp else 130.dp,
         )
 
-        if (anchor == null && tracking.verticalPlaneTracked) {
+        if (anchor == null && tracking.wallTracked) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -382,6 +387,18 @@ private fun twoPointerAngle(event: MotionEvent): Float {
     val dx = event.getX(0) - event.getX(1)
     val dy = event.getY(0) - event.getY(1)
     return Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+}
+
+/**
+ * Whether the centre of the screen points at something that can host a frame
+ * (a vertical plane, its extension, or a wall-like depth hit). Only the centre
+ * sample is needed, so any positive view size works.
+ */
+private fun Frame.hasPlaceableWallAt(viewWidth: Int, viewHeight: Int): Boolean {
+    if (viewWidth <= 0 || viewHeight <= 0) return false
+    return runCatching {
+        hitTest(viewWidth / 2f, viewHeight / 2f).any { WallPlacement.isPlaceableWallHit(it) }
+    }.getOrDefault(false)
 }
 
 private fun trackingFailureHint(reason: TrackingFailureReason?): String? = when (reason) {
